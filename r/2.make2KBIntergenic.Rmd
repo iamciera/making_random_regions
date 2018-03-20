@@ -1,128 +1,56 @@
 ## Make 2Kb Intergenic regions
 
-The intergenic regions that I made, which are detailed in  `cleanedFlybaseBetweenGenes_17July2017.BED` are not able to actually be lifted from the genome, likely becasue the regions are so large.
-
-I want to find random 2kb regions and then filter if they overlapp with the kvon regions. 
+Purpose: I want to find random 2,000 bp (length) regions that will act as "control" for statistical tests. Are the properties that are found in random 2000 bp regions different then those that are represented with the kvon dataset. 
 
 ```{r}
+## Possible Libraries that might be useful
 library(GenomicRanges)
 library(rtracklayer)
 ```
 
 ## To Do
 
-- [x] Retrieve random number between start and end 
+- [ ] Retrieve random number between start and end 
 - [ ] Choose random regions and allow resampling
-- [x] You go up or down 2kb
-  - [x] Is the region at least 2KB
+- [ ] You go up or down 2000bp
+  - [ ] Is the region at least 2000bp 
     - yes, continue
     - no, don't use
-   - [x] Make sure it doesn't hit the start or end
-  - [x]I guess you can just go 2KB in each region.
+   - [ ] Make sure it doesn't hit the start or end
+- [ ] Non - overlapping regions
 - [ ] Make sure it does not overlapp with previous Kvon data sets.
-- [ ] Make sure it does not overlap in promoter regions ect.
+- [ ] Make sure it does not overlap in promoter regions ect (not yet).
+- [ ] Number of regions random regions = 7,500
+- [ ] Visualize
 
 ## Finding the regions
 
-Rewrite the bed file. This is mostly to reformat for uses ranges, but I didn't end up using ranges.
+Rewrite the bed file. This is mostly to reformat for use with ranges.
 
 ```{r}
-inter_regions_bed <- read.table("../../cleanedFlybaseBetweenGenes_17July2017.BED")
+inter_regions_bed <- read.table("../data/input/cleanedFlybaseBetweenGenes_17July2017.BED")
 
-# making new and writing out so that the import function works. The main problem was that the "score" column is supposed to be a number.
-
+## rename columns and clean
 colnames(inter_regions_bed) <- c("seqnames", "starts", "ends", "names", "scores", "strands")
 inter_regions_bed$scores <- 0
 
-#write.table(inter_regions_bed, "../../rearrange_cleanedFlybaseBetweenGenes_17July2017.BED", col.names=F,row.names=F,sep="\t",quote=F)
-```
+## write.table(inter_regions_bed, "../data/output/rearrange_cleanedFlybaseBetweenGenes_20March2018.BED", col.names=F,row.names=F,sep="\t",quote=F)
 
-## Randomization
-
-- [ ] The ifelse statement is not working.
-
-```{r}
 ## prepare dataset
 inter_regions <- subset(inter_regions_bed, select = -c(scores, strands))
 inter_regions$size <- inter_regions$ends - inter_regions$starts
+```
 
-## Make new column start and end columns that start and end 2kb in
-## Start
-ifelse(inter_regions$size > 2000, inter_regions$starts_2kb <- inter_regions$starts  + 2000, "NA")
+## About data
 
-## Ends
-ifelse(inter_regions$size > 2000, inter_regions$ends_2kb <- inter_regions$ends  + 2000, "NA")
+- `seqnames`: chromosome
+- `starts`: start of intergenic region
+- `ends`: end of intergeneic region
+- `size`: size of intergenic region
 
-## Pick random number
-inter_regions$random_start <- 1
+## Find random 2kb regions.
 
-# Pick a random number between the ranges, in each range
-for (i in 1:nrow(inter_regions)) {
-  n <- sample(inter_regions$starts_2kb[i]:inter_regions$ends_2kb[i], 1)
-  inter_regions$random_start[i] <- n
-}
-
-# Make a vector of random 0 and 1s
-# To use when isolating randomly choosing upstream or 
-# downstream of random number
-inter_regions$x <- sample(c(0,1), replace = TRUE, size = nrow(inter_regions))
-
-## Check
-summary(as.factor(inter_regions$x))
-
+```{r}
 head(inter_regions)
-
-# This is not working correctly
-df$food %in% veg
-
-inter_regions$random_end <- ifelse(inter_regions$x == 1, 
-                                   inter_regions$random_start  + 2000,
-                                   inter_regions$random_start  - 2000)
-
-head(inter_regions, 50)
-```
-
-Now switch the column values depending on if we went upstream or downstream.
-```{r}
-## Now some of the starts start after some of the ends
-## I need to write something that asks:
-## If the random_end column is less than the random_start column, switch the values.
-
-## Check
-test1 <- inter_regions$random_end - inter_regions$random_start
-plot(test1)
-summary(test1)
-
-inter_regions$random_start_2 <- ifelse(inter_regions$random_start < inter_regions$random_end, inter_regions$random_start, inter_regions$random_end)
-
-inter_regions$random_end_2 <- ifelse(inter_regions$random_start > inter_regions$random_end, inter_regions$random_start, inter_regions$random_end)
-
-test <- inter_regions$random_end_2 - inter_regions$random_start_2   
-plot(test)
-```
-
-Make BED file output for 
-
-```{r}
-# 6 columns
-# chr (ex. chr2L), start, end, names, score (ex. all "score"), strand (ex. all "+")
-
-colnames(inter_regions)
-for_new_bed <- inter_regions[,c(1,11,12,4)]
-head(for_new_bed) 
-
-for_new_bed$seqnames <- sub("^", "chr", for_new_bed$seqnames)
-
-for_new_bed$score <- "score"
-for_new_bed$strand <- "+"
-
-write.table(for_new_bed,"../../1.random_intergenic_regions_1August2017.bed",col.names=F,row.names=F,sep="\t",quote=F)
-```
-
-## Learning Ranges
-
-```{r}
-# To use with ranges.
-b <- import("../../rearrange_cleanedFlybaseBetweenGenes_17July2017.BED", format="bed")
-
+levels(inter_regions$seqnames)
 ```
