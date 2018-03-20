@@ -1,0 +1,201 @@
+# Cleaning up the flybase gene annotation file. 
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(splitstackshape)
+```
+
+To-do?
+[ ] Strip gene name
+[ ] attach to loop
+
+```{r}
+## dmel-all-r6.13.gtf file came from here: 
+## ftp://ftp.flybase.org/genomes/dmel/current/gtf/
+genesRange <- read.table("../data/input/dmel-all-r6.13.gtf.txt", sep = "\t" )
+
+head(genesRange)
+#levels(genesRange$V1)
+
+# Lets just check first
+
+dim(genesRange)
+levels(genesRange$V3)
+test <- as.table(summary(genesRange$V3))
+test <- melt(test)
+## write.csv(test, "~/Desktop/gtf_categories.csv")
+
+## clean and output bed
+head(genesRange)
+
+genesRange <- cSplit(genesRange, "V9", ";")
+genesRange <- as.data.frame(genesRange)
+genesRange$V9_2 <- gsub("gene_symbol ", "", genesRange$V9_2)
+
+cols <- c(3,10)
+genesRange$name <- apply( genesRange[ , cols ] , 1 , paste , collapse = "_" )
+head(genesRange)
+
+output_BED_genesRange <- genesRange[,c(1,4,5,13)]
+head(output_BED_genesRange) 
+
+#write.table(output_BED_genesRange,"./cleanedFlybaseALLannotations_15Nov2016.BED",col.names=F,row.names=F,sep="\t",quote=F)
+
+## Back to only genes
+genesRange_onlygene <- subset(genesRange, V3 == "gene")
+dim(genesRange_onlygene) # Okay.  Yes.
+head(genesRange_onlygene)
+
+
+genesRange_onlygene <- cSplit(genesRange_onlygene, "V9", ";")
+
+genesRange_onlygene$V9_2 <- gsub("gene_symbol ", "", genesRange_onlygene$V9_2)
+genesRange_onlygene <- as.data.frame(genesRange_onlygene) #cSplit turned into data.table?
+genesRange_onlygene <- genesRange_onlygene[,-9]
+
+head(genesRange_onlygene)
+dim(genesRange_onlygene)
+
+# Get rid of everything but the chromosomes I am interested in
+selected <- c("2L", "2R", "3L", "3R", "4", "X", "Y")
+genesRange_onlygene <- genesRange_onlygene[genesRange_onlygene$V1 %in% selected, ]
+genesRange_onlygene$V1 <- factor(genesRange_onlygene$V1)
+````
+## Write out only gene bed file
+```{r}
+head(genesRange_onlygene)
+genesRange_output <- genesRange_onlygene[,c(1,4,5,10)]
+genesRange_output$score <- "score"
+genesRange_output$strand <- "+" 
+head(genesRange_output)
+
+levels(as.factor(genesRange_output$V1))
+genesRange_output$V1 <- gsub("2L", "chr2L", genesRange_output$V1)
+genesRange_output$V1 <- gsub("2R", "chr2R", genesRange_output$V1)
+genesRange_output$V1 <- gsub("3R", "chr3R", genesRange_output$V1)
+genesRange_output$V1 <- gsub("4", "chr4", genesRange_output$V1)
+genesRange_output$V1 <- gsub("X", "chrX", genesRange_output$V1)
+genesRange_output$V1 <- gsub("Y", "chrY", genesRange_output$V1)
+
+write.table(genesRange_output,"../../../only_gene_ranges_29Nov2017.BED",col.names=F,row.names=F,sep="\t", quote=F)
+```
+
+```{r}
+#order
+genesRange_onlygene <- genesRange_onlygene[order(genesRange_onlygene$V1, genesRange_onlygene$V4),]
+
+head(genesRange_onlygene)
+chr2L <- subset(genesRange_onlygene, V1 == "2L")
+chr2R <- subset(genesRange_onlygene, V1 == "2R")
+chr3L <- subset(genesRange_onlygene, V1 == "3L")
+chr4 <- subset(genesRange_onlygene, V1 == "4")
+chrX <- subset(genesRange_onlygene, V1 == "X")
+chrY <- subset(genesRange_onlygene, V1 == "Y")
+
+output_chr2L <- data.frame(matrix(ncol=5, nrow=nrow(chr2L)))
+output_chr2R <- data.frame(matrix(ncol=5, nrow=nrow(chr2R)))
+output_chr3L <- data.frame(matrix(ncol=5, nrow=nrow(chr3L)))
+output_chr4 <- data.frame(matrix(ncol=5, nrow=nrow(chr4)))
+output_chrX <- data.frame(matrix(ncol=5, nrow=nrow(chrX)))
+output_chrY <- data.frame(matrix(ncol=5, nrow=nrow(chrY)))
+
+head(genesRange_onlygene)
+
+chromosomes <- c("chr2L", "chr2R", "chr3L", "chr3R", "chr4", "chrX", "chrY")
+
+for(i in 1:nrow(chrY)){
+  output_chrY[i,1] <- as.character(chrY[i,1]) #chr
+  output_chrY[i,2] <- chrY[i,4] + 1 #left Range
+  output_chrY[i,3] <- chrY[i+1,5] - 1 #right Range
+  output_chrY[i,4] <- as.character(chrY[i,9])#left Gene
+  output_chrY[i,5] <- as.character(chrY[i+1,9])#right Gene
+}
+
+head(output_chrY)
+
+for(i in 1:nrow(chrX)){
+  output_chrX[i,1] <- as.character(chrX[i,1]) #chr
+  output_chrX[i,2] <- chrX[i,4] + 1 #left Range
+  output_chrX[i,3] <- chrX[i+1,5] - 1 #right Range
+  output_chrX[i,4] <- as.character(chrX[i,9])#left Gene
+  output_chrX[i,5] <- as.character(chrX[i+1,9])#right Gene
+}
+
+for(i in 1:nrow(chr4)){
+  output_chr4[i,1] <- as.character(chr4[i,1]) #chr
+  output_chr4[i,2] <- chr4[i,4] + 1 #left Range
+  output_chr4[i,3] <- chr4[i+1,5] - 1 #right Range
+}
+
+for(i in 1:nrow(chr3L)){
+  output_chr3L[i,1] <- as.character(chr3L[i,1]) #chr
+  output_chr3L[i,2] <- chr3L[i,4] + 1 #left Range
+  output_chr3L[i,3] <- chr3L[i+1,5] - 1 #right Range
+  output_chr3L[i,4] <- as.character(chr3L[i,9])#left Gene
+  output_chr3L[i,5] <- as.character(chr3L[i+1,9])#right Gene
+}
+
+
+for(i in 1:nrow(chr2L)){
+  output_chr2L[i,1] <- as.character(chr2L[i,1]) #chr
+  output_chr2L[i,2] <- chr2L[i,4] + 1 #left Range
+  output_chr2L[i,3] <- chr2L[i+1,5] - 1 #right Range
+  output_chr2L[i,4] <- as.character(chr2L[i,9])#left Gene
+  output_chr2L[i,5] <- as.character(chr2L[i+1,9])#right Gene
+}
+
+for(i in 1:nrow(chr2R)){
+  output_chr2R[i,1] <- as.character(chr2R[i,1]) #chr
+  output_chr2R[i,2] <- chr2R[i,4] + 1 #left Range
+  output_chr2R[i,3] <- chr2R[i+1,5] - 1 #right Range
+  output_chr2R[i,4] <- as.character(chr2R[i,9])#left Gene
+  output_chr2R[i,5] <- as.character(chr2R[i+1,9])#right Gene
+}
+
+
+output_allChr <- rbind(output_chrY, output_chrX, output_chr4, output_chr3L, output_chr2R, output_chr2L)
+head(output_allChr,50)
+
+levels(as.factor(output_allChr$X1))
+tail(output_allChr)
+
+output_allChr$size <- output_allChr$X3 - output_allChr$X2
+head(output_allChr)
+
+## All the sizes
+ggplot(output_allChr, aes(X1, size)) + 
+  geom_violin()  +
+  scale_y_continuous(name="size in BP", labels = scales::comma) +
+  scale_x_discrete(name="chromosome") +
+  theme_bw() +
+  theme(text = element_text(size = 25)) 
+
+# clean up and output bedfile file
+# remove rows with NA
+
+output_allChr <- na.omit(output_allChr)
+
+cols <- c("X4", "X5")
+output_allChr$name <- apply( output_allChr[ , cols ] , 1 , paste , collapse = " to " )
+
+head(output_allChr)
+
+outputBED <- output_allChr[,c(1,2,3,7)]
+
+head(outputBED)
+
+#write.table(outputBED,"./cleanedFlybaseGenesOnly_15Nov2016.BED",col.names=F,row.names=F,sep="\t",quote=F)
+```
+
+Output Bed For lift over
+```{r}
+outputBED$name <- gsub(" to ", "_to_", outputBED$name)
+
+outputBED$score <- "score" 
+outputBED$strand <- "+"
+
+head(outputBED)
+
+# write.table(outputBED,"./cleanedFlybaseBetweenGenes_17July2017.BED",col.names=F,row.names=F,sep="\t",quote=F)
