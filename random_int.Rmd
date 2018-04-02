@@ -1,0 +1,470 @@
+---
+title: "seq"
+author: "Gracie Yao"
+date: "March 6, 2018"
+output: html_document
+---
+```{r}
+
+```
+
+```{r}
+library(seqinr)
+install.packages("BioStrings")
+source("https://bioconductor.org/biocLite.R")
+biocLite()
+```
+
+```{r}
+source("http://bioconductor.org/biocLite.R")
+biocLite("Biostrings")
+```
+
+
+```{r}
+library(BioStrings)
+# The following is a function which creates a dataframe with the first col the DNA_ID and the second col DNA  
+# However, the readDNAStringSet function is inside BioStrings package, which I am not able to install  
+fasta2dataframe <- function(fastaFile){
+s <- readDNAStringSet(fastaFile)
+seq_name <- names(s)
+seq_name <- sub(" .*", "", seq_name) # remove all characters after the first space  
+for (i in 1:legnth(s)){
+  seq[i]<-toString(s[i])
+}
+DNA_seq<-data.frame(seq_name, seq)
+return(DNA_seq)
+}
+F1<-"C://Users//Yao//Desktop//sp18//DNA//C://Users//Yao//Desktop//sp18//kvon_raw_fasta//VT0002.fa"
+fasta2dataframe(F1)
+df<-as.data.frame(readDNAStringSet(F1))
+F <- "C://Users//Yao//Desktop//sp18//DNA//3_24_species_only_alignments//alignments//align_outlier_rm_with_length_VT0809.fa"
+df<-readDNAStringSet(F)
+df
+
+#use readNDAStringSet
+temp<-list.files(path="C:\\Users\\Yao\\Desktop\\sp18\\DNA\\1.all_lifted",pattern = "*.fa")
+myfiles<-lapply(temp,readDNAStringSet)
+
+
+```
+
+```{r}
+# find the GC content; an example
+s <- df[1,1]
+G <- "G"
+C <- "C"
+s2 <- gsub(G, "", s)
+s2 <- gsub(C, "", s)
+numOcc <- nchar(s) - nchar(s2)
+numOcc/nchar(s)
+```
+
+```{r}
+biocLite("muscle")
+```
+
+
+```{r}
+#use readFasta in package "ShortRead" to merge all fasta data 
+patt <- "fa$"
+fasta <- readFasta("C:\\Users\\Yao\\Desktop\\sp18\\DNA\\1.all_lifted", patt)
+head(fasta)
+writeFasta(fasta, "C:\\Users\\Yao\\Desktop\\sp18\\DNA\\compact_raw.fasta")
+raw_kvon<-readDNAStringSet("C:\\Users\\Yao\\Desktop\\sp18\\DNA\\compact_raw.fasta")
+row_raw_kvon<-206852
+head(raw_kvon)
+```
+
+#import data
+```{r}
+data<-read.table("C:\\Users\\Yao\\Desktop\\sp18\\DNA\\making_random_regions\\data\\input\\cleanedFlybaseBetweenGenes_17July2017.BED")
+df<-as.data.frame(data)
+```
+
+# combine overlapping intervals 
+```{r}
+#pick 10000 random rows 
+random_rows<-sample(1:nrow(df),10000)
+df<-df[random_rows,]
+ordered_df<-df[order(df$V2, decreasing = FALSE),]
+```
+
+
+```{r}
+# get a general idea of how many overlaps do we have and their positions
+string<-c()
+for (i in 1:9999){
+  if (ordered_df$V2[i+1]<=ordered_df$V3[i]){
+    string[i]<-T # T indicates overlap occurs
+  } else {
+    string[i]<-F  
+  }
+}
+ordered_df<-ordered_df[,2:3]
+ordered_df<- mutate(ordered_df,order=c(1:10000))
+
+sum(string) # number of overlapping intervals
+stop<-which(string==FALSE) # place where nonoverlap starts
+stop<-c(stop,10000)
+
+#position table which shows where the overlaps start and end
+df<-data.frame()
+df[1,1]<-1
+df[1,2]<-stop[1]
+for (i in 2:length(stop)){
+  if(stop[i]-stop[i-1]==1){
+    df[i,1]<-stop[i]
+    df[i,2]<-stop[i]
+  }else{
+    df[i,1]<-stop[i-1]+1
+    df[i,2]<-stop[i]
+  }
+}
+
+# using the position table to find corresponding intervals
+int<-data.frame()
+for (i in 1:nrow(df)){
+  int[i,1]<-ordered_df$V2[df[i,1]]
+  int[i,2]<-max(ordered_df$V3[df[i,1]:df[i,2]])
+}
+
+
+#repeat the steps above until combine all the overlapping intervals
+###########
+string2<-c()
+for (i in 1:(nrow(int)-1)){
+  if (int$V1[i+1]<=int$V2[i]){
+    string2[i]<-T
+  } else {
+    string2[i]<-F  
+  }
+}
+
+stop2<-which(string2==FALSE)
+stop2<-c(stop2,nrow(int))
+
+df2<-data.frame()
+df2[1,1]<-1
+df2[1,2]<-stop2[1]
+for (i in 2:length(stop2)){
+  if(stop2[i]-stop2[i-1]==1){
+    df2[i,1]<-stop2[i]
+    df2[i,2]<-stop2[i]
+  }else{
+    df2[i,1]<-stop2[i-1]+1
+    df2[i,2]<-stop2[i]
+  }
+}
+
+int2<-data.frame()
+for (i in 1:nrow(df2)){
+  int2[i,1]<-int$V1[df2[i,1]]
+  int2[i,2]<-max(int$V2[df2[i,1]:df2[i,2]])
+}
+
+
+#############
+string3<-c()
+for (i in 1:(nrow(int2)-1)){
+  if (int2$V1[i+1]<=int2$V2[i]){
+    string3[i]<-T
+  } else {
+    string3[i]<-F  
+  }
+}
+
+stop3<-which(string3==FALSE)
+stop3<-c(stop3,nrow(int2))
+
+df3<-data.frame()
+df3[1,1]<-1
+df3[1,2]<-stop3[1]
+for (i in 2:length(stop3)){
+  if(stop3[i]-stop3[i-1]==1){
+    df3[i,1]<-stop3[i]
+    df3[i,2]<-stop3[i]
+  }else{
+    df3[i,1]<-stop3[i-1]+1
+    df3[i,2]<-stop3[i]
+  }
+}
+
+int3<-data.frame()
+for (i in 1:nrow(df3)){
+  int3[i,1]<-int2$V1[df3[i,1]]
+  int3[i,2]<-max(int2$V2[df3[i,1]:df3[i,2]])
+}
+
+#############
+string4<-c()
+for (i in 1:(nrow(int3)-1)){
+  if (int3$V1[i+1]<=int3$V2[i]){
+    string4[i]<-T
+  } else {
+    string4[i]<-F  
+  }
+}
+stop4<-which(string4==FALSE)
+stop4<-c(stop4,nrow(int3))
+
+df4<-data.frame()
+df4[1,1]<-1
+df4[1,2]<-stop4[1]
+for (i in 2:length(stop4)){
+  if(stop4[i]-stop4[i-1]==1){
+    df4[i,1]<-stop4[i]
+    df4[i,2]<-stop4[i]
+  }else{
+    df4[i,1]<-stop4[i-1]+1
+    df4[i,2]<-stop4[i]
+  }
+}
+
+int4<-data.frame()
+for (i in 1:nrow(df4)){
+  int4[i,1]<-int3$V1[df4[i,1]]
+  int4[i,2]<-max(int3$V2[df4[i,1]:df4[i,2]])
+}
+
+#########
+string5<-c()
+for (i in 1:(nrow(int4)-1)){
+  if (int4$V1[i+1]<=int4$V2[i]){
+    string5[i]<-T
+  } else {
+    string5[i]<-F  
+  }
+}
+stop5<-which(string5==FALSE)
+stop5<-c(stop5,nrow(int4))
+
+df5<-data.frame()
+df5[1,1]<-1
+df5[1,2]<-stop5[1]
+for (i in 2:length(stop5)){
+  if(stop5[i]-stop5[i-1]==1){
+    df5[i,1]<-stop5[i]
+    df5[i,2]<-stop5[i]
+  }else{
+    df5[i,1]<-stop5[i-1]+1
+    df5[i,2]<-stop5[i]
+  }
+}
+
+int5<-data.frame()
+for (i in 1:nrow(df5)){
+  int5[i,1]<-int4$V1[df5[i,1]]
+  int5[i,2]<-max(int4$V2[df5[i,1]:df5[i,2]])
+}
+
+###########
+string6<-c()
+for (i in 1:(nrow(int5)-1)){
+  if (int5$V1[i+1]<=int5$V2[i]){
+    string6[i]<-T
+  } else {
+    string6[i]<-F  
+  }
+}
+stop6<-which(string6==FALSE)
+stop6<-c(stop6,nrow(int5))
+
+df6<-data.frame()
+df6[1,1]<-1
+df6[1,2]<-stop6[1]
+for (i in 2:length(stop6)){
+  if(stop6[i]-stop6[i-1]==1){
+    df6[i,1]<-stop6[i]
+    df6[i,2]<-stop6[i]
+  }else{
+    df6[i,1]<-stop6[i-1]+1
+    df6[i,2]<-stop6[i]
+  }
+}
+
+int6<-data.frame()
+for (i in 1:nrow(df6)){
+  int6[i,1]<-int5$V1[df6[i,1]]
+  int6[i,2]<-max(int5$V2[df6[i,1]:df6[i,2]])
+}
+
+
+#############
+string7<-c()
+for (i in 1:(nrow(int6)-1)){
+  if (int6$V1[i+1]<=int6$V2[i]){
+    string7[i]<-T
+  } else {
+    string7[i]<-F  
+  }
+}
+
+stop7<-which(string7==FALSE)
+stop7<-c(stop7,nrow(int6))
+
+df7<-data.frame()
+df7[1,1]<-1
+df7[1,2]<-stop7[1]
+for (i in 2:length(stop7)){
+  if(stop7[i]-stop7[i-1]==1){
+    df7[i,1]<-stop7[i]
+    df7[i,2]<-stop7[i]
+  }else{
+    df7[i,1]<-stop7[i-1]+1
+    df7[i,2]<-stop7[i]
+  }
+}
+
+int7<-data.frame()
+for (i in 1:nrow(df7)){
+  int7[i,1]<-int6$V1[df7[i,1]]
+  int7[i,2]<-max(int6$V2[df7[i,1]:df7[i,2]])
+}
+
+
+
+#########
+string8<-c()
+for (i in 1:(nrow(int7)-1)){
+  if (int7$V1[i+1]<=int7$V2[i]){
+    string8[i]<-T
+  } else {
+    string8[i]<-F  
+  }
+}
+
+stop8<-which(string8==FALSE)
+stop8<-c(stop8,nrow(int7))
+
+df8<-data.frame()
+df8[1,1]<-1
+df8[1,2]<-stop8[1]
+for (i in 2:length(stop8)){
+  if(stop8[i]-stop8[i-1]==1){
+    df8[i,1]<-stop8[i]
+    df8[i,2]<-stop8[i]
+  }else{
+    df8[i,1]<-stop8[i-1]+1
+    df8[i,2]<-stop8[i]
+  }
+}
+
+int8<-data.frame()
+for (i in 1:nrow(df8)){
+  int8[i,1]<-int7$V1[df8[i,1]]
+  int8[i,2]<-max(int7$V2[df8[i,1]:df8[i,2]])
+}
+
+############
+
+string9<-c()
+for (i in 1:(nrow(int8)-1)){
+  if (int8$V1[i+1]<=int8$V2[i]){
+    string9[i]<-T
+  } else {
+    string9[i]<-F  
+  }
+}
+
+stop9<-which(string9==FALSE)
+stop9<-c(stop9,nrow(int8))
+
+df9<-data.frame()
+df9[1,1]<-1
+df9[1,2]<-stop9[1]
+for (i in 2:length(stop9)){
+  if(stop9[i]-stop9[i-1]==1){
+    df9[i,1]<-stop9[i]
+    df9[i,2]<-stop9[i]
+  }else{
+    df9[i,1]<-stop9[i-1]+1
+    df9[i,2]<-stop9[i]
+  }
+}
+
+int9<-data.frame()
+for (i in 1:nrow(df9)){
+  int9[i,1]<-int8$V1[df9[i,1]]
+  int9[i,2]<-max(int8$V2[df9[i,1]:df9[i,2]])
+}
+
+#############
+string10<-c()
+for (i in 1:(nrow(int9)-1)){
+  if (int9$V1[i+1]<=int9$V2[i]){
+    string10[i]<-T
+  } else {
+    string10[i]<-F  
+  }
+}
+#############
+int9[4,2]<-int9[6,2]
+nonoverlap_int<-slice(int9,c(1:4,7:8))
+# nonoverlap_int is the table that shows all the non-overlapping intervals
+```
+
+```{r}
+#organize data frame 
+number_table<- nonoverlap_int %>% 
+  mutate(start=V1, end=V2-2000,     length=V2-V1,number=round(length/2000))%>%
+  arrange(desc(length))%>%
+  select(-c(V1,V2))%>%
+  mutate(weight=number/sum(number),num_pick=round(weight*8000))
+
+```
+
+
+# get random intervals
+```{r}
+get_start_pt<-function(row){
+  a<-c()
+  end<-number_table$end
+  pick<-number_table$num_pick
+  a[1]<-number_table$start[row]
+  a[2]<-sample(a[1]:(a[1]+(end[row]-a[1])/pick[row]),1)
+for (i in 2:pick[row]){
+  a[i+1]<-sample(
+                (a[i]+2000):
+                (a[i]+(end[row]-a[i]-2000)/(pick[row]-(i-1))),1)
+}
+  a[-1]
+}
+
+start_pt1<-get_start_pt(1)
+start_pt2<-get_start_pt(2)
+start_pt3<-get_start_pt(3)
+start_pt4<-get_start_pt(4)
+start_pt5<-get_start_pt(5)
+start_pt6<-get_start_pt(6)
+
+random_start0<-c(start_pt1,start_pt2,start_pt3, start_pt4,start_pt5,start_pt6)
+random_start<-sample(random_start0,8000,replace = FALSE)
+random_table<-data.frame(start=random_start,end=random_start+2000)
+head(random_table)
+```
+
+
+
+
+
+
+Ignore the following
+###### another way to realize randomness, but needs changes
+```{r}
+modified_ordered_df<-ordered_df[,2:3]
+for (i in 1:9999){
+  if(modified_ordered_df$V2[i+1]<=modified_ordered_df$V3[i]){
+    modified_ordered_df$V2[i+1]<-modified_ordered_df$V2[i]
+   if(modified_ordered_df$V3[i+1]<=modified_ordered_df$V3[i]){
+     modified_ordered_df$V3[i+1]<-modified_ordered_df$V3[i]
+   } else {
+     modified_ordered_df$V3[i]<-modified_ordered_df$V3[i+1]
+   }
+  } 
+}
+head(modified_ordered_df)
+
+
+```
+
